@@ -3,7 +3,7 @@ from agent import AIAgent
 
 def main():
     print("\n" + "=" * 60)
-    print("🤖 AI EMAIL AGENT (Local LLM - Qwen2.5)")
+    print("AI EMAIL AGENT (Local LLM - Qwen2.5)")
     print("=" * 60)
     print("Type something like:")
     print("Send an email to john@example.com saying hello")
@@ -20,18 +20,18 @@ def main():
                 break
 
             if not user_input:
-                print("Please type something 🙂")
+                print("Please type something ")
                 continue
 
             response = agent.process_user_input(user_input)
             print("\nAgent:", response)
 
         except KeyboardInterrupt:
-            print("\n👋 Stopped")
+            print("\n Stopped")
             break
 
         except Exception as e:
-            print("❌ Error:", e)
+            print(" Error:", e)
 
 
 if __name__ == "__main__":
