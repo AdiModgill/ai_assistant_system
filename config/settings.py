@@ -15,7 +15,7 @@ COLLECTIONS = {
 
 
 #Ollama / LLM
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_URL = os.getenv("OLLAMA_URL","http://localhost:11434")
 LLM_MODEL = "qwen2.5:3b"
 
 

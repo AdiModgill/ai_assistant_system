@@ -1,26 +1,26 @@
-
+# utils/llm.py
 import requests
 from config.settings import OLLAMA_URL, LLM_MODEL
 
 def chat(messages: list, system_prompt: str = "") -> str:
-    """
-    Send messages to Ollama and get a reply.
     
-    messages format:
-    [
-        {"role": "user", "content": "hey!"},
-        {"role": "assistant", "content": "hey back!"},
-        {"role": "user", "content": "how are you?"}
-    ]
-    """
+    final_messages = []
+
+    # inject system prompt as first message
+    if system_prompt:
+        final_messages.append({
+            "role": "system",
+            "content": system_prompt
+        })
+
+    # add conversation history
+    final_messages.extend(messages)
+
     payload = {
         "model": LLM_MODEL,
-        "messages": messages,
+        "messages": final_messages,
         "stream": False
     }
-
-    if system_prompt:
-        payload["system"] = system_prompt
 
     try:
         response = requests.post(
@@ -32,8 +32,8 @@ def chat(messages: list, system_prompt: str = "") -> str:
         return response.json()["message"]["content"].strip()
 
     except requests.exceptions.ConnectionError:
-        return " Cannot connect to Ollama. Is it running?"
+        return "Cannot connect to Ollama. Is it running?"
     except requests.exceptions.Timeout:
-        return " Ollama took too long to respond."
+        return "Ollama took too long to respond."
     except Exception as e:
-        return f" LLM error: {str(e)}"
+        return f"LLM error: {str(e)}"

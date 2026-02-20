@@ -1,11 +1,13 @@
-
-from database.database import database
+# core/memory.py
+from database.database import db
 from datetime import datetime
+import pytz
 
+IST = pytz.timezone("Asia/Kolkata")
 
 class MemoryManager:
     def __init__(self):
-        self.messages = database.get_collection("messages")
+        self.messages = db.get_collection("messages")
 
     def save_message(self, phone, role, content, channel="whatsapp"):
         message = {
@@ -13,7 +15,7 @@ class MemoryManager:
             "channel": channel,
             "role": role,
             "content": content,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(IST)
         }
         self.messages.insert_one(message)
 
@@ -23,6 +25,5 @@ class MemoryManager:
         ).sort("timestamp", -1).limit(limit)
 
         messages = list(cursor)
-        messages.reverse()  # Oldest first
-
+        messages.reverse()
         return messages

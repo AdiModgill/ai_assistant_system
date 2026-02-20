@@ -18,6 +18,7 @@ def setup_indexes():
     scheduled_col.create_index([("run_at", ASCENDING), ("status", ASCENDING)])
     print(" scheduled_tasks index created")
 
+
 def insert_sample_contact():
     sample = {
          "name": "Test User",
@@ -28,7 +29,7 @@ def insert_sample_contact():
             "tone": "casual",
             "emoji_usage": "high",
             "language": "en",
-            "timezone": "Asia/delhi",
+            "timezone": "Asia/Kolkata",
             "channel": "whatsapp"
             }
      }
