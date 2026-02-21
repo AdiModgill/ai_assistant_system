@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MONGO_URI = os.getenv("MONGO_URI" , "maongodb://localhost:27017")
+MONGO_URI = os.getenv("MONGO_URI" , "mongodb://localhost:27017")
 DB_NAME = "ai_assistant"
 
 COLLECTIONS = {
@@ -16,9 +16,13 @@ COLLECTIONS = {
 
 #Ollama / LLM
 OLLAMA_URL = os.getenv("OLLAMA_URL","http://localhost:11434")
-LLM_MODEL = "qwen2.5:3b"
+LLM_MODEL = "llama3:latest"
 
 
 #WhatsApp Agent
 
 WHATSAPP_CONTEXT_LIMIT = 15
+
+
+#traslation
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")

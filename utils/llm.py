@@ -26,7 +26,7 @@ def chat(messages: list, system_prompt: str = "") -> str:
         response = requests.post(
             f"{OLLAMA_URL}/api/chat",
             json=payload,
-            timeout=60
+            timeout=180     # ✅ 3 minutes
         )
         response.raise_for_status()
         return response.json()["message"]["content"].strip()

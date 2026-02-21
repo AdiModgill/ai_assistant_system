@@ -14,8 +14,8 @@ def on_connected(client: NewClient, connected: ConnectedEv):
     global _handler
     _handler = MessageHandler(client)
     set_client(client)
-    print("✅ WhatsApp connected!")
-    print("💬 Aditya agent is live...")
+    print(" WhatsApp connected!")
+    print(" Aditya agent is live...")
 
 
 def on_message(client: NewClient, message: MessageEv):
