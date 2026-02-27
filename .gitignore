@@ -9,6 +9,8 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-*.exe
-
 .env
+*.exe
+__pycache__/
+*.pyc
+venv/
