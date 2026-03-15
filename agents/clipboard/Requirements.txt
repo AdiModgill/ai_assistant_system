@@ -1,0 +1,6 @@
+# requirements.txt
+ollama
+pyperclip
+Pillow
+pywin32
+pyinstaller
