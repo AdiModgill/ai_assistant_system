@@ -67,7 +67,7 @@ def save_contact(phone: str, name: str):
             "notes": "",
             "created_at": datetime.now(IST)
         })
-        print(f"✅ New contact saved: {name} ({phone})")
+        print(f" New contact saved: {name} ({phone})")
     else:
         # only update name if we got a real one and current is Unknown
         if name and name != "Unknown" and existing.get("name") in ["Unknown", None, ""]:
@@ -75,7 +75,7 @@ def save_contact(phone: str, name: str):
                 {"phone": phone},
                 {"$set": {"name": name}}
             )
-            print(f"✅ Contact name updated: {name} ({phone})")
+            print(f" Contact name updated: {name} ({phone})")
 
 
 def extract_info(phone: str, text: str):
@@ -336,7 +336,7 @@ class MessageHandler:
             lines = [l.strip() for l in reply.split("\n") if l.strip()]
             reply = " ".join(lines[:2])
 
-            print(f"🤖 Aditya: {reply}")
+            print(f" Aditya: {reply}")
 
             memory.save_message(phone, "assistant", reply)
 
@@ -344,5 +344,5 @@ class MessageHandler:
 
         except Exception as e:
             import traceback
-            print(f"❌ Reply error: {e}")
+            print(f" Reply error: {e}")
             traceback.print_exc()

@@ -1,5 +1,15 @@
-# main.py
-from agents.whatsapp.whatsapp_agent import start_whatsapp_agent
+"""
+Nova AI Assistant - Single Entry Point
+Run this file to start the assistant.
+"""
+
+from core.nova import Nova
+
+
+def main():
+    nova = Nova()
+    nova.run()
+
 
 if __name__ == "__main__":
-    start_whatsapp_agent()
+    main()
