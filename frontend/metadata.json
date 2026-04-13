@@ -1,0 +1,5 @@
+{
+  "name": "NOVA Assistant",
+  "description": "A streamlined AI delegation dashboard for managing specialized sub-agents with a commander-style interface.",
+  "requestFramePermissions": []
+}
