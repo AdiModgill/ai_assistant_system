@@ -1,19 +1,52 @@
-# Python cache
+# =====================
+# ENV FILES (VERY IMPORTANT)
+# =====================
+.env
+
+# =====================
+# PYTHON CACHE
+# =====================
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
-# VS Code
+# =====================
+# VIRTUAL ENVIRONMENT
+# =====================
+venv/
+env/
+
+# =====================
+# IDE / EDITOR
+# =====================
 .vscode/
+.idea/
 
-# OS
+# =====================
+# OS FILES
+# =====================
 .DS_Store
 Thumbs.db
 
-.env
+# =====================
+# EXECUTABLE FILES
+# =====================
 *.exe
-__pycache__/
-*.pyc
-venv/
 
-
+# =====================
+# WHATSAPP / SESSION FILES
+# =====================
 whatsapp.session
+*.session
+
+# =====================
+# DATABASE / LOCAL DATA
+# =====================
+*.db
+*.sqlite
+
+# =====================
+# LOGS
+# =====================
+*.log

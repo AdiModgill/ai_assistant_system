@@ -1,3 +1,4 @@
+#setup_database.py
 from database.db import contacts_col, whatsapp_col, email_col, scheduled_col
 from pymongo import ASCENDING, DESCENDING
 
@@ -5,19 +6,19 @@ from pymongo import ASCENDING, DESCENDING
 def setup_indexes():
     # Contacts - unique phone
     contacts_col.create_index([("phone", ASCENDING)], unique=True)
-    print("✅ contacts index created")
+    print(" contacts index created")
 
     # WhatsApp messages - phone + timestamp
     whatsapp_col.create_index([("phone", ASCENDING), ("timestamp", DESCENDING)])
-    print("✅ whatsapp_messages index created")
+    print(" whatsapp_messages index created")
 
     # Email messages - email + timestamp
     email_col.create_index([("email", ASCENDING), ("timestamp", DESCENDING)])
-    print("✅ email_messages index created")
+    print(" email_messages index created")
 
     # Scheduled tasks - run_at + status
     scheduled_col.create_index([("run_at", ASCENDING), ("status", ASCENDING)])
-    print("✅ scheduled_tasks index created")
+    print(" scheduled_tasks index created")
 
 
 def insert_sample_contact():

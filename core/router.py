@@ -1,65 +1,41 @@
-"""
-Router - Decides which agent handles a user request.
-Uses regex keyword matching. Easy to add new agents.
-"""
-
 import re
-from typing import Optional, List
-
 
 class Router:
     def __init__(self):
-        # Import agents here (avoids circular imports at module level)
-        #from agents.email_agent     import EmailAgent
-        from agents.weather_agent.weather_agent import WeatherAgent 
-        from agents.alarm_agent     import AlarmAgent
-        from agents.whatsapp_agent  import WhatsAppAgent
-        from agents.clipboard_agent import ClipboardAgent
+        from agents.weather_agent.weather_agent import WeatherAgent
+        from agents.alarm_agent.alarm_agent import AlarmAgent
+        from agents.clipboard_agent.clipboard_agent import ClipboardAgent
         from agents.email_agent.email_agent import EmailAgent
+        from agents.whatsapp_agent.whatsapp_sender_agent import WhatsAppSenderAgent
+        from agents.music_agent.music_agent import MusicAgent
+        from agents.goal_agent.goal_agent import GoalAgent
 
-        # Each entry: (agent_instance, [regex patterns], human-readable description)
+        # ✅ CREATE INSTANCES ONCE
+        self.music_agent = MusicAgent()
+        self.goal_agent = GoalAgent()
+        self.email_agent = EmailAgent()
+        self.weather_agent = WeatherAgent()
+        self.alarm_agent = AlarmAgent()
+        self.whatsapp_agent = WhatsAppSenderAgent()
+        self.clipboard_agent = ClipboardAgent()
+
         self.routes = [
-            (
-                EmailAgent(),
-                [r"\bemail\b", r"send mail", r"\binbox\b", r"compose"],
-                "Email — send or check emails",
-            ),
-            (
-                WeatherAgent(),
-                [r"\bweather\b", r"\btemperature\b", r"\bforecast\b", r"\brain\b", r"\bsunny\b"],
-                "Weather — get current weather for any city",
-            ),
-            (
-                AlarmAgent(),
-                [r"\balarm\b", r"\breminder\b", r"remind me", r"set timer", r"\btimer\b", r"wake me"],
-                "Alarm / Timer — set timers and reminders",
-            ),
-            (
-                WhatsAppAgent(),
-                [r"\bwhatsapp\b", r"whats ?app", r"send (a )?message to", r"text to"],
-                "WhatsApp — send WhatsApp messages",
-            ),
-            (
-                ClipboardAgent(),
-                [r"\bclipboard\b", r"\bpaste\b", r"\bcopy\b", r"\bclip\b"],
-                "Clipboard — read or write clipboard content",
-            ),
+            (self.music_agent, [r'\bmusic\b', r'\bsong\b', r'\bsongs\b', r'play', r'suggest.*song'], 'Music - suggest songs'),
+            (self.goal_agent, [r'\bgoal\b', r'\bdone\b', r'\bprogress\b'], 'Goal Tracker'),
+            (self.email_agent, [r'\bemail\b', r'send mail', r'\binbox\b'], 'Email - send or check emails'),
+            (self.weather_agent, [r'\bweather\b', r'\btemperature\b', r'\bforecast\b'], 'Weather - get current weather'),
+            (self.alarm_agent, [r'\balarm\b', r'\breminder\b', r'remind me', r'wake me'], 'Alarm - set timers'),
+            (self.whatsapp_agent, [r'\bwhatsapp\b', r'send.*message to', r'text to'], 'WhatsApp - send messages'),
+            (self.clipboard_agent, [r'\bclipboard\b', r'\bpaste\b', r'\bcopy\b'], 'Clipboard - read or write'),
         ]
 
-    def route(self, user_input: str) -> Optional[object]:
-        """
-        Match user input against keyword patterns.
-        Returns the first matching agent, or None.
-        """
+    def route(self, user_input):
         text = user_input.lower()
-
         for agent, patterns, _ in self.routes:
             for pattern in patterns:
                 if re.search(pattern, text):
                     return agent
+        return None
 
-        return None  # No match → Nova handles clarification
-
-    def list_capabilities(self) -> List[str]:
-        """Return human-readable list of what Nova can do. Used in help/clarification."""
-        return [description for _, _, description in self.routes]
+    def list_capabilities(self):
+        return [desc for _, _, desc in self.routes]

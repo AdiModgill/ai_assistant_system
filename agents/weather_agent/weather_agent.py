@@ -1,69 +1,112 @@
-import ollama
+"""
+Weather Agent
+=============
+Gets real weather data from Open-Meteo (free, no API key needed).
+"""
+
+import re
 import requests
+import ollama
+
+
+WEATHER_CODES = {
+    0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+    45: "Foggy", 48: "Icy fog", 51: "Light drizzle", 53: "Drizzle",
+    55: "Heavy drizzle", 61: "Light rain", 63: "Rain", 65: "Heavy rain",
+    71: "Light snow", 73: "Snow", 75: "Heavy snow", 80: "Rain showers",
+    81: "Heavy showers", 82: "Violent showers", 95: "Thunderstorm",
+}
 
 
 class WeatherAgent:
     def __init__(self):
-        print("🌦️ WeatherAgent initialized")
+        print("WeatherAgent initialized")
 
-    def get_weather(self, city_name):
+    def _extract_city(self, user_input):
+        """Extract city name using LLM — just the name, nothing else."""
+        try:
+            response = ollama.chat(
+                model='llama3:latest',
+                messages=[
+                    {
+                        'role': 'system',
+                        'content': 'Extract ONLY the city name from the message. Reply with just the city name, nothing else. No punctuation, no explanation.'
+                    },
+                    {
+                        'role': 'user',
+                        'content': user_input
+                    }
+                ]
+            )
+            city = response['message']['content'].strip()
+            # Clean up any extra words just in case
+            city = city.split('\n')[0].strip()
+            city = re.sub(r'[^a-zA-Z\s]', '', city).strip()
+            return city
+        except Exception as e:
+            print(f"[WeatherAgent] City extraction error: {e}")
+            return None
+
+    def _get_weather(self, city):
+        """Fetch real weather data from Open-Meteo."""
         # Step 1: Get coordinates
-        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city_name}&count=1&language=en&format=json"
-        geo_res = requests.get(geo_url).json()
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&language=en&format=json"
+        geo_res = requests.get(geo_url, timeout=10).json()
 
         if not geo_res.get('results'):
-            return "Could not find that city."
+            return None, f"I couldn't find a city called '{city}'. Please check the spelling."
 
-        lat = geo_res['results'][0]['latitude']
-        lon = geo_res['results'][0]['longitude']
+        result = geo_res['results'][0]
+        lat = result['latitude']
+        lon = result['longitude']
+        city_name = result['name']
+        country = result.get('country', '')
 
         # Step 2: Get weather
-        weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
-        weather_res = requests.get(weather_url).json()
-
+        weather_url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat}&longitude={lon}"
+            f"&current_weather=true"
+            f"&hourly=relative_humidity_2m,apparent_temperature"
+            f"&timezone=auto"
+            f"&forecast_days=1"
+        )
+        weather_res = requests.get(weather_url, timeout=10).json()
         current = weather_res['current_weather']
 
-        return f"The current temperature in {city_name} is {current['temperature']}°C with windspeed {current['windspeed']} km/h."
+        temp = current['temperature']
+        windspeed = current['windspeed']
+        code = current.get('weathercode', 0)
+        condition = WEATHER_CODES.get(code, "Clear")
+
+        # Get humidity from hourly (first value = current hour)
+        humidity = weather_res.get('hourly', {}).get('relative_humidity_2m', [None])[0]
+        feels_like = weather_res.get('hourly', {}).get('apparent_temperature', [None])[0]
+
+        weather_text = (
+            f"📍 {city_name}, {country}\n"
+            f"🌡️ Temperature: {temp}°C"
+            + (f" (feels like {feels_like}°C)" if feels_like else "") + "\n"
+            f"🌤️ Condition: {condition}\n"
+            f"💨 Wind: {windspeed} km/h"
+            + (f"\n💧 Humidity: {humidity}%" if humidity else "")
+        )
+
+        return weather_text, None
 
     def handle(self, user_input):
-        print(f"🌦️ Processing weather request: {user_input}")
+        print(f"[WeatherAgent] Input: {user_input}")
 
-        try:
-            # Extract city using LLM
-            response = ollama.chat(
-                model='llama3:8b',
-                messages=[
-                    {
-                        'role': 'system',
-                        'content': 'Extract only the city name from the user input.'
-                    },
-                    {
-                        'role': 'user',
-                        'content': user_input,
-                    },
-                ],
-            )
+        # Extract city
+        city = self._extract_city(user_input)
+        if not city:
+            return "I couldn't figure out which city you meant. Try: 'weather in Delhi'"
 
-            city = response['message']['content'].strip()
+        print(f"[WeatherAgent] City extracted: {city}")
 
-            weather_info = self.get_weather(city)
+        # Get real weather
+        weather_text, error = self._get_weather(city)
+        if error:
+            return error
 
-            # Final response
-            final_response = ollama.chat(
-                model='llama3:8b',
-                messages=[
-                    {
-                        'role': 'system',
-                        'content': 'You are a friendly weather assistant.'
-                    },
-                    {
-                        'role': 'user',
-                        'content': f"User asked: {user_input}. Weather data: {weather_info}",
-                    },
-                ],
-            )
-
-            return final_response['message']['content']
-
-        except Exception as e:
-            return f"Weather error: {str(e)}"
+        return f"Here's the current weather:\n\n{weather_text}"
