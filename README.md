@@ -1,7 +1,7 @@
-# Aditya — AI Assistant System
+# 🤖 Aditya — AI Assistant System
 
 A full-stack AI assistant system with modular backend agents and a modern frontend UI.  
-The system can handle automation tasks, WhatsApp messaging, scheduling, and AI-based responses using a local LLM.
+It can automate tasks, handle WhatsApp messaging, scheduling, and AI-based responses using a **local LLM (Ollama + LLaMA 3)**.
 
 ---
 
@@ -11,118 +11,124 @@ ai_assistant_system/
 │
 ├── backend/        → Python AI backend (agents + core system)
 ├── frontend/       → UI application (React / Vite)
-├── README.txt      → Project documentation
+├── README.md       → Project documentation
 
 ---
 
-# ⚙️ Backend Features
+# 🧠 AI MODEL (LOCAL LLM)
 
-- Multi-agent system (modular architecture)
-  - WhatsApp Agent
-  - Email Agent
-  - Alarm Agent
-  - Weather Agent
-  - Music Agent
-  - Clipboard Agent
-  - Goal Agent
-- AI Brain (LLM integration via Ollama / Groq)
-- Message memory system
-- Task scheduling system
-- REST API (FastAPI / Uvicorn)
-- Database integration (MongoDB)
+This project uses a fully local AI model setup:
 
----
+- **Ollama** → Local LLM runtime engine
+- **Model Used** → LLaMA 3 (llama3:latest / 8B variant)
+- **API Endpoint** → http://localhost:11434
 
-# 🎨 Frontend Features
-
-- Modern UI (React + Vite)
-- Chat-based interface (AI assistant style)
-- API integration with backend
-- Fast and responsive design
-- Clean component structure
+### ⚙️ Why Ollama + LLaMA 3?
+- 100% local processing (no cloud dependency)
+- No API cost
+- Faster responses
+- Privacy-safe (data stays on your system)
+- Ideal for AI agents & automation systems
 
 ---
 
-# 🚀 How to Run Backend
+# 🚀 Setup Ollama (Required)
 
-1. Go to backend folder:
-   cd backend
+### 1. Install Ollama
+https://ollama.com
 
-2. Install dependencies:
-   pip install -r requirements.txt
+### 2. Pull model
+```bash
+ollama pull llama3:latest
 
-3. Start server:
-   python run_backend.py
-   OR
-   uvicorn api.server:app --reload --port 8000
+3. Start Ollama server
+ollama serve
+⚙️ Backend Features
+Multi-agent system (modular architecture)
+WhatsApp Agent (Neonize integration)
+Email Agent
+Alarm Agent
+Weather Agent
+Music Agent
+Clipboard Agent
+Goal Agent
+AI Brain (Ollama + optional Groq support)
+Memory system (conversation history)
+Task scheduling system
+REST API (FastAPI / Uvicorn)
+Database integration (MongoDB)
+🎨 Frontend Features
+Modern UI built with React + Vite
+Chat-style AI assistant interface
+Real-time API communication with backend
+Fast and responsive design
+Clean component-based architecture
+🚀 How to Run Backend
+cd backend
+Install dependencies
+pip install -r requirements.txt
+Run backend
+python run_backend.py
+
+OR
+
+uvicorn api.server:app --reload --port 8000
 
 Backend runs at:
 http://127.0.0.1:8000
 
----
-
-# 💻 How to Run Frontend
-
-1. Go to frontend folder:
-   cd frontend
-
-2. Install dependencies:
-   npm install
-
-3. Start frontend:
-   npm run dev
+💻 How to Run Frontend
+cd frontend
+Install dependencies
+npm install
+Start frontend
+npm run dev
 
 Frontend runs at:
 http://localhost:5173
 
----
+🔐 Environment Variables
 
-# 🔐 Environment Variables
+Create a .env file inside backend/:
 
-Create a .env file inside backend:
-
-MONGO_URI=your_mongo_url
+MONGO_URI=your_mongodb_url
 OLLAMA_URL=http://localhost:11434
-GROQ_API_KEY=your_api_key
+GROQ_API_KEY=your_api_key_here
 
-DO NOT push .env to GitHub.
+⚠️ Never push .env to GitHub (it contains secrets).
 
----
+🧠 System Architecture
 
-# ⚠️ Important Notes
+User
+↓
+Frontend (React UI)
+↓
+Backend API (FastAPI)
+↓
+AI Router (Agents System)
+↓
+LLM (Ollama + LLaMA 3)
+↓
+Response returned
 
-- Keep backend and frontend running separately
-- Ensure MongoDB is running locally or remotely
-- Install Ollama for local LLM support
-- Use Python 3.10+
-
----
-
-# 🧠 Tech Stack
-
-Backend:
-- Python
-- FastAPI / Uvicorn
-- MongoDB
-- Ollama / Groq
-- Neonize (WhatsApp automation)
-
-Frontend:
-- React
-- Vite
-- TypeScript
-- CSS
-
----
-
-# 🔒 Privacy
-
-All processing is done locally unless external APIs are used.  
-No sensitive data should be pushed to GitHub.
-
----
-
-# 📌 Author
-
-Aditya — AI Assistant Project  
-Built for learning AI automation and full-stack system design.
+⚙️ Tech Stack
+Backend
+Python
+FastAPI / Uvicorn
+MongoDB
+Ollama (LLaMA 3)
+Neonize (WhatsApp automation)
+Frontend
+React
+Vite
+TypeScript
+CSS
+🔒 Privacy
+Fully local AI processing via Ollama
+No sensitive data leaves system unless external APIs are used
+Secure local execution
+⚠️ Important Notes
+Start Ollama before running backend
+Ensure MongoDB is running
+Run backend and frontend separately
+Requires Python 3.10+
