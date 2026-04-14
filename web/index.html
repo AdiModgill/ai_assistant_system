@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Assistant</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ───────────────── APP SHELL ───────────────── -->
+  <div class="app">
+
+    <!-- LEFT SIDEBAR – sub-agents -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="logo-icon">⬡</span>
+        <span class="logo-text">Agents</span>
+      </div>
+
+      <ul class="agent-list" id="agentList">
+        <li class="agent-item active" data-agent="main">
+          <span class="agent-icon">🤖</span>
+          <div class="agent-info">
+            <span class="agent-name">Main Agent</span>
+            <span class="agent-status online">Online</span>
+          </div>
+        </li>
+        <li class="agent-item" data-agent="weather">
+          <span class="agent-icon">🌤</span>
+          <div class="agent-info">
+            <span class="agent-name">Weather Agent</span>
+            <span class="agent-status idle">Idle</span>
+          </div>
+        </li>
+        <li class="agent-item" data-agent="email">
+          <span class="agent-icon">✉️</span>
+          <div class="agent-info">
+            <span class="agent-name">Email Agent</span>
+            <span class="agent-status idle">Idle</span>
+          </div>
+        </li>
+        <li class="agent-item" data-agent="whatsapp">
+          <span class="agent-icon">💬</span>
+          <div class="agent-info">
+            <span class="agent-name">WhatsApp Agent</span>
+            <span class="agent-status idle">Idle</span>
+          </div>
+        </li>
+        <li class="agent-item" data-agent="clipboard">
+          <span class="agent-icon">📋</span>
+          <div class="agent-info">
+            <span class="agent-name">Clipboard Agent</span>
+            <span class="agent-status idle">Idle</span>
+          </div>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+
+      <!-- TOP BAR -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="topbar-title">AI Assistant</span>
+          <span class="topbar-badge">Main Agent</span>
+        </div>
+        <div class="topbar-right">
+          <span class="connection-dot"></span>
+          <span class="connection-label">Connected</span>
+        </div>
+      </header>
+
+      <!-- AGENT FLOW VISUALIZER -->
+      <section class="flow-section" id="flowSection">
+        <div class="flow-node main-node" id="mainNode">
+          <span class="flow-icon">🤖</span>
+          <span class="flow-label">Main Agent</span>
+        </div>
+        <div class="flow-arrows" id="flowArrows">
+          <!-- arrows injected by JS -->
+        </div>
+        <div class="flow-sub-nodes" id="subNodes">
+          <!-- sub-node cards injected by JS -->
+        </div>
+      </section>
+
+      <!-- CHAT MESSAGES -->
+      <section class="chat-section" id="chatSection">
+        <div class="messages" id="messages">
+          <div class="message assistant">
+            <span class="msg-avatar">🤖</span>
+            <div class="msg-bubble">
+              Hello! I'm your AI assistant. I can call sub-agents for weather, email, WhatsApp, and clipboard tasks.
+              <span class="msg-meta">Main Agent • now</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- INPUT BAR -->
+      <footer class="input-bar">
+        <button class="attach-btn" title="Attach" onclick="showHint()">＋</button>
+        <input
+          type="text"
+          id="userInput"
+          class="chat-input"
+          placeholder="Message AI assistant…"
+          autocomplete="off"
+        />
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </footer>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
