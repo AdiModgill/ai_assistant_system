@@ -1,22 +1,19 @@
 """
-Clipboard Agent
-================
+Clipboard Agent (Fixed + Reliable)
+=================================
 Nova calls: agent.handle(user_input, memory)
 
-What it does:
-1. "copy this text to clipboard: Hello World"  -> saves text to clipboard
-2. "read my clipboard" / "what's in clipboard" -> returns current clipboard content
-3. "show clipboard history"                    -> returns last 10 saved clips
+Features:
+✔ Copy text to clipboard
+✔ Always save to DB (even if clipboard fails)
+✔ Read clipboard (with DB fallback)
+✔ Clipboard history
+✔ Restore last saved item
 """
 
 import sqlite3
 import pyperclip
 from datetime import datetime
-
-try:
-    import ollama
-except ImportError:
-    ollama = None
 
 DB_PATH = "clipboard_manager.db"
 
@@ -27,50 +24,86 @@ class ClipboardAgent:
     def __init__(self):
         self._init_db()
 
-    # ── Nova entry point ────────────────────────────────────
+    # ── Nova Entry ─────────────────────────────────────────
 
     def handle(self, user_input: str, memory=None) -> str:
         text = user_input.lower()
 
-        # read clipboard
-        if any(w in text for w in ["read", "what's in", "whats in", "show clipboard", "get clipboard", "paste"]):
+        # READ CLIPBOARD
+        if any(w in text for w in ["read", "what's in", "whats in", "show clipboard", "paste"]):
             if "history" in text:
                 return self._get_history()
             return self._read_clipboard()
 
-        # show history
+        # HISTORY
         if "history" in text:
             return self._get_history()
 
-        # copy text to clipboard
-        if any(w in text for w in ["copy", "save to clipboard", "add to clipboard"]):
-            # extract the text after ":" or "copy"
+        # RESTORE LAST
+        if "last" in text or "restore" in text:
+            return self._restore_last()
+
+        # COPY
+        if any(w in text for w in ["copy", "save", "add to clipboard"]):
             content = self._extract_content(user_input)
             if content:
                 return self._copy_to_clipboard(content)
-            else:
-                return "✗ What should I copy? Try: 'copy this to clipboard: Hello World'"
+            return "✗ What should I copy?\nTry: copy this to clipboard: Hello World"
 
-        return "I can: read clipboard, show clipboard history, or copy text. Try 'read my clipboard'."
+        return "I can copy, read clipboard, show history, or restore last item."
 
-    # ── Actions ─────────────────────────────────────────────
-
-    def _read_clipboard(self) -> str:
-        try:
-            content = pyperclip.paste()
-            if not content or not content.strip():
-                return "📋 Clipboard is empty."
-            return f"📋 Clipboard contains:\n\n{content}"
-        except Exception as e:
-            return f"✗ Could not read clipboard: {e}"
+    # ── CORE ACTIONS ──────────────────────────────────────
 
     def _copy_to_clipboard(self, content: str) -> str:
+        """Copy + always save to DB"""
+        copied = False
+
         try:
             pyperclip.copy(content)
-            self._save_to_db(content)
-            return f"✅ Copied to clipboard:\n\"{content}\""
+            check = pyperclip.paste()
+            if check == content:
+                copied = True
+        except Exception:
+            copied = False
+
+        # ALWAYS SAVE
+        self._save_to_db(content)
+
+        if copied:
+            return f"✅ Copied & saved:\n\"{content}\""
+        else:
+            return f"⚠ Saved but clipboard failed:\n\"{content}\""
+
+    def _read_clipboard(self) -> str:
+        """Read clipboard, fallback to DB"""
+        try:
+            content = pyperclip.paste()
+            if content and content.strip():
+                return f"📋 Clipboard:\n\n{content}"
+        except Exception:
+            pass
+
+        # fallback
+        return "📋 Clipboard empty. Showing last saved:\n\n" + self._get_last_only()
+
+    def _restore_last(self) -> str:
+        """Restore last DB entry to clipboard"""
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT content FROM clipboard_history ORDER BY id DESC LIMIT 1")
+            row = cursor.fetchone()
+            conn.close()
+
+            if row:
+                try:
+                    pyperclip.copy(row[0])
+                    return f"📋 Restored to clipboard:\n{row[0]}"
+                except:
+                    return f"⚠ Found but could not copy:\n{row[0]}"
+            return "No saved content."
         except Exception as e:
-            return f"✗ Could not copy to clipboard: {e}"
+            return f"✗ Error: {e}"
 
     def _get_history(self, limit: int = 10) -> str:
         try:
@@ -84,83 +117,80 @@ class ClipboardAgent:
             conn.close()
 
             if not rows:
-                return "📋 No clipboard history found."
+                return "📋 No history."
 
-            lines = ["📋 Last clipboard entries:\n"]
-            for i, (clip_id, content, timestamp) in enumerate(rows, 1):
+            output = ["📋 Clipboard History:\n"]
+            for i, (cid, content, ts) in enumerate(rows, 1):
                 preview = content[:60] + "..." if len(content) > 60 else content
-                lines.append(f"{i}. [{timestamp}] {preview}")
+                output.append(f"{i}. [{ts}] {preview}")
 
-            return "\n".join(lines)
+            return "\n".join(output)
 
         except Exception as e:
-            return f"✗ Could not fetch history: {e}"
+            return f"✗ Error: {e}"
 
-    # ── Helpers ─────────────────────────────────────────────
+    def _get_last_only(self):
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT content FROM clipboard_history ORDER BY id DESC LIMIT 1")
+            row = cursor.fetchone()
+            conn.close()
+            return row[0] if row else "Nothing saved yet."
+        except:
+            return "Error reading DB."
+
+    # ── HELPERS ───────────────────────────────────────────
 
     def _extract_content(self, user_input: str) -> str:
-        """Extract the text to copy — everything after ':' if present."""
         if ":" in user_input:
             return user_input.split(":", 1)[1].strip()
 
-        # try removing command words
-        for phrase in ["copy this to clipboard", "copy to clipboard", "save to clipboard",
-                       "add to clipboard", "copy this", "copy"]:
-            if phrase in user_input.lower():
-                idx = user_input.lower().find(phrase) + len(phrase)
-                remainder = user_input[idx:].strip()
-                if remainder:
-                    return remainder
+        commands = [
+            "copy this to clipboard", "copy to clipboard",
+            "save to clipboard", "add to clipboard",
+            "copy this", "copy", "save"
+        ]
+
+        lower = user_input.lower()
+
+        for cmd in commands:
+            if cmd in lower:
+                idx = lower.find(cmd) + len(cmd)
+                return user_input[idx:].strip()
 
         return ""
 
     def _save_to_db(self, content: str):
-        """Save to clipboard history DB."""
         try:
             conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS clipboard_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    content TEXT NOT NULL,
-                    timestamp TEXT NOT NULL,
-                    category TEXT DEFAULT 'general',
-                    pinned INTEGER DEFAULT 0
-                )
-            """)
-            # avoid duplicate of last entry
-            cursor.execute(
-                "SELECT content FROM clipboard_history ORDER BY id DESC LIMIT 1"
-            )
-            last = cursor.fetchone()
-            if last and last[0] == content:
-                conn.close()
-                return
 
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute(
-                "INSERT INTO clipboard_history (content, timestamp) VALUES (?, ?)",
-                (content, timestamp)
-            )
+
+            cursor.execute("""
+                INSERT INTO clipboard_history (content, timestamp)
+                VALUES (?, ?)
+            """, (content, timestamp))
+
             conn.commit()
             conn.close()
         except Exception:
             pass
 
     def _init_db(self):
-        """Create DB table if not exists."""
         try:
             conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS clipboard_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     content TEXT NOT NULL,
-                    timestamp TEXT NOT NULL,
-                    category TEXT DEFAULT 'general',
-                    pinned INTEGER DEFAULT 0
+                    timestamp TEXT NOT NULL
                 )
             """)
+
             conn.commit()
             conn.close()
         except Exception:

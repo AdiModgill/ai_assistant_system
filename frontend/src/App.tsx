@@ -249,55 +249,67 @@ export default function App() {
   }
   const [alarms, setAlarms] = React.useState<AlarmItem[]>([]);
   const [ringingAlarm, setRingingAlarm] = React.useState<AlarmItem | null>(null);
-  // Track which alarm IDs we've already shown as ringing so we don't double-trigger
   const seenRingingIds = useRef<Set<string>>(new Set());
 
+  // ── FIXED: Alarm polling every 5 seconds ──────────────────────────────────
   useEffect(() => {
-    const alarmInterval = setInterval(async () => {
+    const playBeep = () => {
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const playTone = (freq: number, startTime: number, duration: number) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = freq;
+          osc.type = 'sine';
+          gain.gain.setValueAtTime(0, startTime);
+          gain.gain.linearRampToValueAtTime(0.4, startTime + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+          osc.start(startTime);
+          osc.stop(startTime + duration);
+        };
+        // Three-beep pattern
+        playTone(880, ctx.currentTime, 0.4);
+        playTone(880, ctx.currentTime + 0.5, 0.4);
+        playTone(1100, ctx.currentTime + 1.0, 0.6);
+      } catch {
+        // Web Audio not available, skip sound
+      }
+    };
+
+    const poll = async () => {
       try {
         const res = await fetch('http://127.0.0.1:8000/alarms');
+        if (!res.ok) return;
         const data = await res.json();
-        const alarmList: AlarmItem[] = data.alarms || [];
-        setAlarms(alarmList);
+        const allAlarms: AlarmItem[] = data.alarms || [];
+        setAlarms(allAlarms);
 
-        const ringing = alarmList.find(a => a.status === 'ringing');
-
+        const ringing = allAlarms.find(
+          a => a.status === 'ringing' && !seenRingingIds.current.has(a.id)
+        );
         if (ringing) {
+          seenRingingIds.current.add(ringing.id);
           setRingingAlarm(ringing);
-
-          if (!seenRingingIds.current.has(ringing.id)) {
-            seenRingingIds.current.add(ringing.id);
-            if (Notification.permission === 'granted') {
-              new Notification(`⏰ ${ringing.label}`, { body: 'Your alarm is ringing! Go to NOVA to dismiss.' });
-            } else if (Notification.permission !== 'denied') {
-              Notification.requestPermission().then(p => {
-                if (p === 'granted') new Notification(`⏰ ${ringing.label}`, { body: 'Your alarm is ringing!' });
-              });
-            }
-          }
-        } else {
-          setRingingAlarm(prev => {
-            if (prev) {
-              const prevAlarm = alarmList.find(a => a.id === prev.id);
-              if (!prevAlarm || prevAlarm.status === 'done' || prevAlarm.status === 'snoozed') {
-                return null;
-              }
-            }
-            return prev;
-          });
+          playBeep();
         }
-      } catch { /* backend not reachable */ }
-    }, 2000);
+      } catch {
+        // Backend unreachable, silently fail
+      }
+    };
 
-    return () => clearInterval(alarmInterval);
+    poll(); // run immediately on mount
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const snoozeAlarm = async (id: string, minutes = 5) => {
     try {
       await fetch(`http://127.0.0.1:8000/alarms/${id}/snooze?minutes=${minutes}`, { method: 'POST' });
       setRingingAlarm(null);
-      seenRingingIds.current.delete(id);
-      showToast(`⏰ Alarm snoozed for ${minutes} minutes`, 'info');
+      seenRingingIds.current.delete(id); // allow re-trigger after snooze expires
+      showToast(`Alarm snoozed for ${minutes} minutes`, 'info');
     } catch {
       showToast('Could not snooze alarm — backend unreachable', 'error');
     }
@@ -307,8 +319,7 @@ export default function App() {
     try {
       await fetch(`http://127.0.0.1:8000/alarms/${id}/dismiss`, { method: 'POST' });
       setRingingAlarm(null);
-      seenRingingIds.current.delete(id);
-      showToast('✅ Alarm dismissed', 'success');
+      showToast('Alarm dismissed', 'success');
     } catch {
       showToast('Could not dismiss alarm — backend unreachable', 'error');
     }
@@ -398,16 +409,16 @@ export default function App() {
       setLastOutput(newActivity);
 
       if (data.agent?.toLowerCase().includes('alarm') || userCommand.toLowerCase().includes('alarm') || userCommand.toLowerCase().includes('remind')) {
-        showToast(`⏰ ${data.response.substring(0, 80)}`, 'success', 6000);
+        showToast(`${data.response.substring(0, 80)}`, 'success', 6000);
       } else {
-        showToast(`✅ ${data.agent} responded`, 'success', 3000);
+        showToast(`${data.agent} responded`, 'success', 3000);
       }
 
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
-      setLastResponse(`⚠ Could not reach Nova backend: ${msg}. Make sure uvicorn is running on port 8000.`);
+      setLastResponse(`Could not reach Nova backend: ${msg}. Make sure uvicorn is running on port 8000.`);
       setProcessingStatus('Error');
-      showToast('⚠ Could not reach Nova backend', 'error');
+      showToast('Could not reach Nova backend', 'error');
     }
 
     setIsProcessing(false);
@@ -437,7 +448,7 @@ export default function App() {
     setActivities(prev => [userActivity, ...prev]);
 
     try {
-      const res = await fetch('http://127.0.0.1:8001/chat', {
+      const res = await fetch('http://127.0.0.1:8000/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: query }),
@@ -457,7 +468,7 @@ export default function App() {
 
       setActivities(prev => [responseActivity, ...prev.slice(1)]);
       setLastOutput(responseActivity);
-      showToast('🎵 Music suggestions ready!', 'success', 4000);
+      showToast('Music suggestions ready!', 'success', 4000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       const errorActivity: ActivityItem = {
@@ -465,11 +476,11 @@ export default function App() {
         task: query,
         agent: 'Music Sub-Agent',
         time: 'Just now',
-        output: `⚠ Could not reach Music backend: ${msg}. Make sure the music service is running on port 8001.`,
+        output: `Could not reach Music backend: ${msg}.`,
       };
       setActivities(prev => [errorActivity, ...prev.slice(1)]);
       setLastOutput(errorActivity);
-      showToast('⚠ Music Sub-Agent unreachable', 'error');
+      showToast('Music Sub-Agent unreachable', 'error');
     }
 
     setIsProcessing(false);
@@ -546,14 +557,14 @@ export default function App() {
       capabilities: '',
       currentTasks: ''
     });
-    showToast(`✅ ${agentToAdd.name} deployed!`, 'success');
+    showToast(`${agentToAdd.name} deployed!`, 'success');
   };
 
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-300">
 
-      {/* ✅ Toast Notifications */}
+      {/* Toast Notifications */}
       <ToastNotification toasts={toasts} onRemove={removeToast} />
 
       {/* Sidebar */}
@@ -635,7 +646,6 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {/* Alarm bell indicator in header */}
             {ringingAlarm && (
               <button
                 onClick={() => setActiveTab('Commander')}
@@ -988,7 +998,7 @@ export default function App() {
               setActiveTab('Commander');
               setIsProcessing(true);
               try {
-                const res = await fetch('http://127.0.0.1:8001/chat', {
+                const res = await fetch('http://127.0.0.1:8000/chat', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ message: msg }),
@@ -1050,9 +1060,9 @@ export default function App() {
                 setLastOutput(newActivity);
 
                 if (selectedAgent.name.toLowerCase().includes('alarm')) {
-                  showToast(`⏰ ${data.response?.substring(0, 80) || 'Alarm set!'}`, 'success', 6000);
+                  showToast(`${data.response?.substring(0, 80) || 'Alarm set!'}`, 'success', 6000);
                 } else {
-                  showToast(`✅ ${data.agent || selectedAgent.name} task complete`, 'success', 3000);
+                  showToast(`${data.agent || selectedAgent.name} task complete`, 'success', 3000);
                 }
               } catch (err) {
                 const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -1065,7 +1075,7 @@ export default function App() {
                 };
                 setActivities(prev => [newActivity, ...prev]);
                 setLastOutput(newActivity);
-                showToast(`⚠ ${selectedAgent.name} error: ${msg}`, 'error');
+                showToast(`${selectedAgent.name} error: ${msg}`, 'error');
               }
               setIsProcessing(false);
               setProcessingStatus('');
@@ -1275,87 +1285,192 @@ export default function App() {
         )}
       </main>
 
-      {/* Ringing Alarm Popup */}
+      {/* ════════════════════════════════════════════════════════════════════════
+          FIXED ALARM RINGING POPUP - Full screen overlay with animations
+          ════════════════════════════════════════════════════════════════════════ */}
       {ringingAlarm && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 100,
-          background: 'rgba(0,0,0,0.75)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
+        <>
+          {/* Keyframe styles */}
+          <style>{`
+            @keyframes alarmRingPulse {
+              0%   { transform: scale(1);    opacity: 0.6; }
+              50%  { transform: scale(1.12); opacity: 0.15; }
+              100% { transform: scale(1),    opacity: 0.6; }
+            }
+            @keyframes alarmBellShake {
+              0%, 100% { transform: rotate(-12deg) scale(1.05); }
+              25%       { transform: rotate( 12deg) scale(1.05); }
+              50%       { transform: rotate(-8deg)  scale(1.05); }
+              75%       { transform: rotate(  8deg) scale(1.05); }
+            }
+            @keyframes alarmSlideUp {
+              from { transform: translateY(40px); opacity: 0; }
+              to   { transform: translateY(0);    opacity: 1; }
+            }
+          `}</style>
+
+          {/* Blurred backdrop */}
           <div style={{
-            background: 'white', borderRadius: 24, padding: '40px 36px', textAlign: 'center',
-            maxWidth: 380, width: '90%', boxShadow: '0 25px 80px rgba(0,0,0,0.4)',
-            border: '2px solid rgba(99,102,241,0.3)'
-          }} className="dark:bg-slate-900 dark:border-indigo-500/30">
-            {/* Pulsing ring animation */}
-            <div style={{ position: 'relative', display: 'inline-block', marginBottom: 20 }}>
-              <div style={{
-                position: 'absolute', inset: -12,
-                borderRadius: '50%', border: '3px solid rgba(99,102,241,0.3)',
-                animation: 'ping 1.5s cubic-bezier(0,0,0.2,1) infinite'
-              }} />
-              <div style={{
-                position: 'absolute', inset: -6,
-                borderRadius: '50%', border: '2px solid rgba(99,102,241,0.2)',
-                animation: 'ping 1.5s cubic-bezier(0,0,0.2,1) infinite 0.3s'
-              }} />
-              <div style={{ fontSize: 56 }}>⏰</div>
-            </div>
+            position: 'fixed', inset: 0, zIndex: 9998,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(12px)',
+          }} />
 
-            <h2 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 8px', letterSpacing: -0.5 }} className="dark:text-white">
-              Alarm Ringing!
-            </h2>
-            <p style={{ fontSize: 17, color: '#64748b', marginBottom: 12, fontWeight: 500 }}>
-              {ringingAlarm.label}
-            </p>
-            <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 32 }}>
-              Set for {ringingAlarm.time}
-            </p>
+          {/* Pulsing rings (decorative, behind card) */}
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            pointerEvents: 'none',
+          }}>
+            {[500, 400, 300].map((size, i) => (
+              <div key={size} style={{
+                position: 'absolute',
+                width: size, height: size,
+                borderRadius: '50%',
+                border: '2px solid rgba(99,102,241,0.3)',
+                animation: `alarmRingPulse 2s ease-out infinite ${i * 0.35}s`,
+              }} />
+            ))}
+          </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  onClick={() => snoozeAlarm(ringingAlarm.id, 5)}
-                  style={{
-                    flex: 1, padding: '13px 0', borderRadius: 14,
-                    border: '2px solid #e2e8f0',
-                    background: 'white', fontSize: 14, fontWeight: 700,
-                    cursor: 'pointer', color: '#475569',
-                    transition: 'all 0.2s'
-                  }}
-                  className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 hover:border-indigo-300"
-                >
-                  😴 Snooze 5 min
-                </button>
-                <button
-                  onClick={() => snoozeAlarm(ringingAlarm.id, 10)}
-                  style={{
-                    flex: 1, padding: '13px 0', borderRadius: 14,
-                    border: '2px solid #e2e8f0',
-                    background: 'white', fontSize: 14, fontWeight: 700,
-                    cursor: 'pointer', color: '#475569',
-                    transition: 'all 0.2s'
-                  }}
-                  className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 hover:border-indigo-300"
-                >
-                  💤 Snooze 10 min
-                </button>
+          {/* Alarm card */}
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 10000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '1rem',
+          }}>
+            <div style={{
+              background: 'white',
+              borderRadius: 32,
+              padding: '48px 40px 44px',
+              textAlign: 'center',
+              width: '100%',
+              maxWidth: 400,
+              boxShadow: '0 40px 100px rgba(0,0,0,0.5), 0 0 0 1.5px rgba(99,102,241,0.25)',
+              animation: 'alarmSlideUp 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+            }}
+            className="dark:bg-slate-900"
+            >
+              {/* Bell icon with shake animation */}
+              <div style={{
+                width: 88, height: 88,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 24px',
+                boxShadow: '0 16px 40px rgba(99,102,241,0.5)',
+                animation: 'alarmBellShake 0.6s ease-in-out infinite',
+                fontSize: 40,
+              }}>
+                ⏰
               </div>
+
+              {/* Label */}
+              <p style={{
+                fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.15em',
+                color: '#6366f1',
+                textTransform: 'uppercase',
+                marginBottom: 10,
+              }}>
+                Alarm
+              </p>
+
+              {/* Alarm name */}
+              <h2 style={{
+                fontSize: 30, fontWeight: 800,
+                color: '#0f172a',
+                margin: '0 0 8px',
+                letterSpacing: '-0.5px',
+                lineHeight: 1.2,
+              }}
+              className="dark:text-white"
+              >
+                {ringingAlarm.label}
+              </h2>
+
+              {/* Time */}
+              <p style={{
+                fontSize: 16,
+                color: '#64748b',
+                marginBottom: 36,
+                fontWeight: 500,
+              }}>
+                {ringingAlarm.time}
+              </p>
+
+              {/* Snooze row */}
+              <p style={{
+                fontSize: 11, fontWeight: 700, color: '#94a3b8',
+                textTransform: 'uppercase', letterSpacing: '0.1em',
+                marginBottom: 10,
+              }}>
+                Snooze for
+              </p>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                {[5, 10, 15].map((mins) => (
+                  <button
+                    key={mins}
+                    onClick={() => snoozeAlarm(ringingAlarm.id, mins)}
+                    style={{
+                      flex: 1, padding: '13px 0',
+                      borderRadius: 14,
+                      border: '1.5px solid #e2e8f0',
+                      background: '#f8fafc',
+                      fontSize: 14, fontWeight: 700,
+                      cursor: 'pointer', color: '#334155',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={e => {
+                      const el = e.currentTarget;
+                      el.style.background = '#eef2ff';
+                      el.style.borderColor = '#6366f1';
+                      el.style.color = '#4338ca';
+                      el.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={e => {
+                      const el = e.currentTarget;
+                      el.style.background = '#f8fafc';
+                      el.style.borderColor = '#e2e8f0';
+                      el.style.color = '#334155';
+                      el.style.transform = 'translateY(0)';
+                    }}
+                    className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                  >
+                     {mins} min
+                  </button>
+                ))}
+              </div>
+
+              {/* Dismiss button */}
               <button
                 onClick={() => dismissAlarm(ringingAlarm.id)}
                 style={{
-                  width: '100%', padding: '15px 0', borderRadius: 14, border: 'none',
-                  background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                  fontSize: 16, fontWeight: 800, cursor: 'pointer', color: 'white',
-                  boxShadow: '0 8px 25px rgba(99,102,241,0.4)',
-                  transition: 'all 0.2s'
+                  width: '100%',
+                  padding: '18px 0',
+                  borderRadius: 16,
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+                  fontSize: 17, fontWeight: 800,
+                  cursor: 'pointer', color: 'white',
+                  boxShadow: '0 10px 30px rgba(99,102,241,0.45)',
+                  transition: 'all 0.15s ease',
+                  letterSpacing: '0.01em',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 16px 40px rgba(99,102,241,0.55)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 10px 30px rgba(99,102,241,0.45)';
                 }}
               >
-                ✓ Dismiss Alarm
+                ✓  Dismiss Alarm
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
     </div>
@@ -1377,7 +1492,7 @@ function GoalsPanel({ onSendCommand }: { onSendCommand: (msg: string) => void })
 
   const fetchGoals = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8001/goals');
+      const res = await fetch('http://127.0.0.1:8000/goals');
       const data = await res.json();
       setGoals(data.goals || []);
     } catch {}
@@ -1385,7 +1500,7 @@ function GoalsPanel({ onSendCommand }: { onSendCommand: (msg: string) => void })
 
   const fetchReminder = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8001/goals/reminder');
+      const res = await fetch('http://127.0.0.1:8000/goals/reminder');
       const data = await res.json();
       setReminder(data.reminder || '');
     } catch {}
@@ -1401,7 +1516,7 @@ function GoalsPanel({ onSendCommand }: { onSendCommand: (msg: string) => void })
       .filter(g => g.name.trim() && g.target)
       .map(g => ({ name: g.name.trim(), target: parseInt(g.target) || 1 }));
     if (!payload.length) return;
-    await fetch('http://127.0.0.1:8001/goals', {
+    await fetch('http://127.0.0.1:8000/goals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -1413,7 +1528,7 @@ function GoalsPanel({ onSendCommand }: { onSendCommand: (msg: string) => void })
 
   const handleUpdateGoal = async (name: string) => {
     const val = parseInt(doneInputs[name] || '1');
-    await fetch('http://127.0.0.1:8001/goals/update', {
+    await fetch('http://127.0.0.1:8000/goals/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify([{ name, done: val }]),
@@ -1425,7 +1540,6 @@ function GoalsPanel({ onSendCommand }: { onSendCommand: (msg: string) => void })
 
   return (
     <div className="space-y-6 overflow-y-auto flex-1 scrollbar-hide">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Daily Goals</h2>
@@ -1439,7 +1553,6 @@ function GoalsPanel({ onSendCommand }: { onSendCommand: (msg: string) => void })
         </button>
       </div>
 
-      {/* Reminder banner */}
       {reminder && reminder !== 'All goals completed for today!' && (
         <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl flex items-center gap-3">
           <span className="text-lg">⏰</span>
@@ -1453,7 +1566,6 @@ function GoalsPanel({ onSendCommand }: { onSendCommand: (msg: string) => void })
         </div>
       )}
 
-      {/* Step 1: How many goals */}
       {step === 'count' && (
         <div className="bg-card-light dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
           <h3 className="font-bold text-slate-700 dark:text-white">How many goals today?</h3>
@@ -1468,7 +1580,6 @@ function GoalsPanel({ onSendCommand }: { onSendCommand: (msg: string) => void })
         </div>
       )}
 
-      {/* Step 2: Goal inputs */}
       {step === 'inputs' && (
         <div className="bg-card-light dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
           <h3 className="font-bold text-slate-700 dark:text-white">Set your {numGoals} goals</h3>
@@ -1509,7 +1620,6 @@ function GoalsPanel({ onSendCommand }: { onSendCommand: (msg: string) => void })
         </div>
       )}
 
-      {/* Goals list */}
       {goals.length === 0 && step === 'view' ? (
         <div className="text-center py-16">
           <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -1557,7 +1667,7 @@ function GoalsPanel({ onSendCommand }: { onSendCommand: (msg: string) => void })
                       onClick={() => handleUpdateGoal(g.goal)}
                       className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 transition-all"
                     >
-                      ➕ Add
+                      Add
                     </button>
                   </div>
                 )}
@@ -1652,7 +1762,7 @@ function AgentActionModal({ agent, onClose, onSend, showToast, musicMood, musicA
             />
           </div>
           <p className="text-xs text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3">
-            💡 After setting, a toast notification will confirm your alarm. When it rings, a popup will appear until you dismiss it.
+            After setting, a popup will appear on screen when the alarm rings. You can snooze or dismiss it from there.
           </p>
         </div>
       );
@@ -1774,7 +1884,6 @@ function AgentActionModal({ agent, onClose, onSend, showToast, musicMood, musicA
       );
     }
 
-    // ── Music Sub-Agent form ───────────────────────────────────────────────────
     if (agentType.includes('music')) {
       return (
         <div className="space-y-4">
@@ -1813,7 +1922,7 @@ function AgentActionModal({ agent, onClose, onSend, showToast, musicMood, musicA
             />
           </div>
           <p className="text-xs text-slate-400 bg-pink-50 dark:bg-pink-500/10 rounded-xl px-4 py-3 border border-pink-100 dark:border-pink-500/20">
-            🎵 Songs will appear in the Commander terminal with YouTube links.
+            Songs will appear in the Commander terminal with YouTube links.
           </p>
         </div>
       );
@@ -1855,7 +1964,7 @@ function AgentActionModal({ agent, onClose, onSend, showToast, musicMood, musicA
                 className="flex-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-pink-500/20 hover:from-pink-600 hover:to-rose-600 transition-all flex items-center justify-center gap-2"
               >
                 <Music className="w-4 h-4" />
-                🎵 Get Songs
+                Get Songs
               </button>
             ) : (
               <button

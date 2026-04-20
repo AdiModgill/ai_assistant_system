@@ -13,8 +13,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from core.nova import Nova
 from agents.alarm_agent.alarm_agent import active_alarms, _lock
+from fastapi import FastAPI
+from pydantic import BaseModel
+from agents.clipboard_agent.clipboard_agent import ClipboardAgent
 
+app = FastAPI()
+agent = ClipboardAgent()
 
+class RequestModel(BaseModel):
+    message: str
+
+@app.post("/clipboard")
+def handle(req: RequestModel):
+    response = agent.handle(req.message)
+    return {"response": response}
 
 def start_whatsapp_bot():
     """Start WhatsApp bot in background thread so it shares the same process as Nova."""

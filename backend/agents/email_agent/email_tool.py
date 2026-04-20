@@ -8,10 +8,12 @@ Use a Gmail App Password, not your real password.
 
 import smtplib
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from email.message import EmailMessage
 
-load_dotenv()
+env_path = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(dotenv_path=env_path)
 
 
 class EmailTool:
@@ -23,14 +25,12 @@ class EmailTool:
         print(f"\n[EmailTool] Sending to: {recipient}")
         print(f"[EmailTool] Subject: {subject}")
 
-        # Check credentials
         if not self.sender_email or not self.sender_password:
             return {
                 "success": False,
                 "error": "Email credentials missing. Add SENDER_EMAIL and SENDER_PASSWORD to your .env file"
             }
 
-        # Validate recipient
         recipient = str(recipient).strip()
         if not recipient or "@" not in recipient:
             return {
